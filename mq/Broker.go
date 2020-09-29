@@ -3,7 +3,6 @@ package mq
 import (
 	"errors"
 	"sync"
-	"time"
 )
 
 type Broker interface {
@@ -146,16 +145,29 @@ func (b *BrokerImpl) broadcast(msg interface{}, subscribers []chan interface{}) 
 	//		}
 	//	}
 	//}
-	//采用Timer 而不是使用time.After 原因：time.After会产生内存泄漏 在计时器触发之前，垃圾回收器不会回收Timer
-	idleDuration := 5 * time.Millisecond
-	idleTimeout := time.NewTimer(idleDuration)
-	defer idleTimeout.Stop()
+
+	/*	// 5秒后发送失败 取消发送
+		// 采用Timer 而不是使用time.After 原因：time.After会产生内存泄漏 在计时器触发之前，垃圾回收器不会回收Timer
+		idleDuration := 5 * time.Millisecond
+		idleTimeout := time.NewTimer(idleDuration)
+		defer idleTimeout.Stop()
+		pub := func(start int) {
+			for j := start; j < count; j += concurrency {
+				idleTimeout.Reset(idleDuration)
+				select {
+				case subscribers[j] <- msg:
+				case <-idleTimeout.C:
+				case <-b.exit:
+					return
+				}
+			}
+		}
+	*/
+	// 消息队列满时，发送者阻塞，防止数据丢失
 	pub := func(start int) {
 		for j := start; j < count; j += concurrency {
-			idleTimeout.Reset(idleDuration)
 			select {
 			case subscribers[j] <- msg:
-			case <-idleTimeout.C:
 			case <-b.exit:
 				return
 			}
