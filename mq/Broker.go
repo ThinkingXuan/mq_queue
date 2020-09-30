@@ -16,7 +16,7 @@ type Broker interface {
 	close()
 	// 对推送的消息就行广播
 	broadcast(msg interface{}, subscribers []chan interface{})
-	//设置消息队列的容量
+	// 设置消息队列的容量
 	sendConditions(capacity int)
 }
 
@@ -43,19 +43,20 @@ func NewBroker() *BrokerImpl {
 }
 
 // publish 给指定topic发布消息
-func (b *BrokerImpl) publish(topic string, pub interface{}) error {
+func (b *BrokerImpl) publish(topic string, msg interface{}) error {
 	select {
 	case <-b.exit:
 		return errors.New("broker close")
 	default:
 	}
+	//map不是goroutine safe的，在多goroutine并发时需要上锁。
 	b.RLock()
 	subscribers, ok := b.topics[topic]
 	b.RUnlock()
 	if !ok {
 		return nil
 	}
-	b.broadcast(pub, subscribers)
+	b.broadcast(msg, subscribers)
 	return nil
 }
 
@@ -113,7 +114,7 @@ func (b *BrokerImpl) close() {
 		return
 	default:
 		close(b.exit)
-		//这里主要是为了保证下一次使用该消息队列不发生冲突
+		// 这里主要是为了保证下一次使用该消息队列不发生冲突
 		b.Lock()
 		b.topics = make(map[string][]chan interface{})
 		b.Unlock()
